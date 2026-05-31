@@ -4,3 +4,4 @@ timestamp_utc,timestamp_local,ice_current,ice_capacity,swim_current,swim_capacit
 2026-05-31T09:58:19Z,2026-05-31 17:58:19,,,,,,,26.0,0.0,0,fetch_failed,ok
 2026-05-31T09:59:16Z,2026-05-31 17:59:16,,,,,,,26.0,0.0,0,fetch_failed,ok
 2026-05-31T09:59:54Z,2026-05-31 17:59:54,,,,,,,25.7,0.0,0,fetch_failed,ok
+2026-05-31T10:00:37Z,2026-05-31 18:00:37,,,,,,,25.7,0.0,0,fetch_failed,ok
