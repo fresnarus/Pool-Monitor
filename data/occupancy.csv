@@ -1,2 +1,3 @@
 timestamp_utc,timestamp_local,ice_current,ice_capacity,swim_current,swim_capacity,gym_current,gym_capacity,temperature_c,precipitation_mm,weather_code,api_status,weather_status
 2026-05-31T08:35:29Z,2026-05-31 16:35:29,,,,,,,27.3,0.0,0,fetch_failed,ok
+2026-05-31T09:55:00Z,2026-05-31 17:55:00,,,,,,,26.0,0.0,0,fetch_failed,ok
