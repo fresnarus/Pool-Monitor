@@ -5,6 +5,9 @@ on:
     # Every 10 minutes during pool hours (06:00–22:00 Taipei = 22:00–14:00 UTC).
     - cron: "0,10,20,30,40,50 22,23,0-13 * * *"
   workflow_dispatch:
+  push:
+    branches: [claude/relaxed-planck-BgLPg]
+    paths-ignore: [data/**]
 
 permissions:
   contents: write
