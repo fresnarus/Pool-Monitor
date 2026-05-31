@@ -1,0 +1,51 @@
+name: Poll occupancy
+
+on:
+  schedule:
+    # Every 10 minutes during pool hours (06:00–22:00 Taipei = 22:00–14:00 UTC).
+    - cron: "0,10,20,30,40,50 22,23,0-13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: poll-occupancy
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: claude/relaxed-planck-BgLPg
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Poll APIs and append row
+        run: python monitor.py
+
+      - name: Commit & push if data changed
+        run: |
+          if [[ -z "$(git status --porcelain data/occupancy.csv 2>/dev/null)" ]]; then
+            echo "No CSV change; nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/occupancy.csv
+          git commit -m "data: sample $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for i in 1 2 3 4; do
+            git pull --rebase origin claude/relaxed-planck-BgLPg && \
+              git push origin HEAD:claude/relaxed-planck-BgLPg && exit 0
+            sleep $((2 ** i))
+          done
+          echo "push failed after retries" >&2
+          exit 1

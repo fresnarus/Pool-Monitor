@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<meta name="referrer" content="no-referrer">
+<title>Occupancy monitor</title>
+<style>
+  :root { --fg:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#fafafa; --accent:#c0392b; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         color: var(--fg); background: var(--bg); margin: 0; padding: 1rem; line-height: 1.4; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+  h1 { font-size: 1.2rem; margin: 0; font-weight: 600; }
+  .controls { display: flex; gap: .4rem; align-items: center; }
+  .controls input[type=date], .controls button {
+    font: inherit; padding: .35rem .6rem; border: 1px solid var(--line); border-radius: 5px;
+    background: #fff; cursor: pointer;
+  }
+  .controls button:hover { background: #f3f4f6; }
+  .summary { background: #fff; border: 1px solid var(--line); border-radius: 6px;
+             padding: .75rem 1rem; margin: 1rem 0; font-size: .95rem; }
+  .summary .pill { display: inline-block; margin-right: 1.5rem; }
+  .summary b { color: var(--accent); }
+  .chart-wrap { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 1rem; }
+  canvas { max-width: 100%; }
+  footer { color: var(--muted); font-size: .85rem; margin-top: 1.5rem; text-align: center; }
+  .err { color: var(--accent); }
+  @media (max-width: 600px) {
+    header { flex-direction: column; align-items: stretch; }
+    .controls { justify-content: center; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Occupancy monitor</h1>
+  <div class="controls">
+    <button id="prev" title="Previous day">←</button>
+    <input type="date" id="date">
+    <button id="next" title="Next day">→</button>
+    <button id="today" title="Today">Today</button>
+  </div>
+</header>
+
+<div id="summary" class="summary">Loading…</div>
+<div class="chart-wrap"><canvas id="chart" height="120"></canvas></div>
+
+<footer>
+  Samples every 10 minutes during opening hours (06:00–22:00 local).
+</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+const CSV_URL = './data/occupancy.csv';
+const LOCAL_OFFSET_MIN = 8 * 60;
+let rows = [];
+let chart = null;
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const header = lines[0].split(',');
+  return lines.slice(1).map(line => {
+    const fields = line.split(',');
+    const r = {};
+    header.forEach((h, i) => r[h] = fields[i] ?? '');
+    return r;
+  });
+}
+
+function num(v) { return v === '' || v == null ? null : Number(v); }
+
+function todayLocal() {
+  const now = new Date();
+  const local = new Date(now.getTime() + (LOCAL_OFFSET_MIN + now.getTimezoneOffset()) * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function shiftDay(days) {
+  const picker = document.getElementById('date');
+  const [y, m, d] = picker.value.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  picker.value = dt.toISOString().slice(0, 10);
+  render();
+}
+
+async function load() {
+  try {
+    const resp = await fetch(CSV_URL + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    rows = parseCSV(await resp.text());
+  } catch (e) {
+    document.getElementById('summary').innerHTML =
+      '<span class="err">Could not load data/occupancy.csv. ' +
+      'If this is a fresh deployment, wait for the first scheduled run.</span>';
+    return;
+  }
+  const picker = document.getElementById('date');
+  if (!picker.value) picker.value = todayLocal();
+  render();
+}
+
+function render() {
+  const day = document.getElementById('date').value;
+  const todays = rows.filter(r => r.timestamp_local && r.timestamp_local.startsWith(day));
+
+  const summary = document.getElementById('summary');
+  if (todays.length === 0) {
+    summary.textContent = `No samples recorded for ${day}.`;
+    if (chart) { chart.destroy(); chart = null; }
+    return;
+  }
+
+  const labels = todays.map(r => r.timestamp_local.slice(11, 16));
+  const ice  = todays.map(r => num(r.ice_current));
+  const swim = todays.map(r => num(r.swim_current));
+  const gym  = todays.map(r => num(r.gym_current));
+  const temperature   = todays.map(r => num(r.temperature_c));
+  const precipitation = todays.map(r => num(r.precipitation_mm));
+
+  let peakVal = null, peakTime = '—';
+  ice.forEach((v, i) => {
+    if (v != null && (peakVal == null || v > peakVal)) { peakVal = v; peakTime = labels[i]; }
+  });
+  const cap = num(todays[todays.length - 1].ice_capacity);
+  const dow = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+  const failures = todays.filter(r => r.api_status !== 'ok').length;
+
+  summary.innerHTML = `
+    <span class="pill"><b>${dow}</b></span>
+    <span class="pill">Peak: <b>${peakVal ?? '—'}</b> at ${peakTime}${cap ? ' (capacity ' + cap + ')' : ''}</span>
+    <span class="pill">Samples: ${todays.length}${failures ? ' · ' + failures + ' failed' : ''}</span>
+  `;
+
+  if (chart) chart.destroy();
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        { type: 'line', label: 'Primary', data: ice,
+          borderColor: '#e67e22', backgroundColor: '#e67e22',
+          yAxisID: 'yPeople', tension: .25, pointRadius: 2 },
+        { type: 'line', label: 'Secondary', data: swim,
+          borderColor: '#3498db', backgroundColor: '#3498db',
+          yAxisID: 'yPeople', tension: .25, pointRadius: 2, hidden: true },
+        { type: 'line', label: 'Gym', data: gym,
+          borderColor: '#9b59b6', backgroundColor: '#9b59b6',
+          yAxisID: 'yPeople', tension: .25, pointRadius: 2, hidden: true },
+        { type: 'line', label: 'Temperature (°C)', data: temperature,
+          borderColor: '#e74c3c', backgroundColor: '#e74c3c',
+          yAxisID: 'yTemp', tension: .25, pointRadius: 0, borderDash: [4, 3] },
+        { type: 'bar', label: 'Precipitation (mm)', data: precipitation,
+          borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, .35)',
+          yAxisID: 'yPrecip' },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { title: { display: true, text: 'Time' } },
+        yPeople: { type: 'linear', position: 'left',
+                   title: { display: true, text: 'People' }, beginAtZero: true },
+        yTemp:   { type: 'linear', position: 'right',
+                   title: { display: true, text: '°C' },
+                   grid: { drawOnChartArea: false } },
+        yPrecip: { type: 'linear', position: 'right',
+                   beginAtZero: true, display: false,
+                   grid: { drawOnChartArea: false } },
+      }
+    }
+  });
+  document.getElementById('chart').parentElement.style.height = '440px';
+}
+
+document.getElementById('date').addEventListener('change', render);
+document.getElementById('prev').onclick = () => shiftDay(-1);
+document.getElementById('next').onclick = () => shiftDay(+1);
+document.getElementById('today').onclick = () => {
+  document.getElementById('date').value = todayLocal();
+  render();
+};
+
+load();
+</script>
+</body>
+</html>
