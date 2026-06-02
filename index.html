@@ -203,17 +203,26 @@ function render() {
     return;
   }
 
-  const labels = todays.map(r => r.timestamp_local.slice(11, 16));
-  const ice  = todays.map(r => num(r.ice_current));
-  const temperature   = todays.map(r => {
+  const timeOfDay = (ts) => {
+    const m = ts && ts.match(/(\d{2}):(\d{2}):(\d{2})$/);
+    return m ? (+m[1]) + (+m[2]) / 60 + (+m[3]) / 3600 : null;
+  };
+  const fmtHM = (v) => {
+    const h = Math.floor(v);
+    const m = Math.round((v - h) * 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const icePts  = todays.map(r => ({ x: timeOfDay(r.timestamp_local), y: num(r.ice_current) }));
+  const tempPts = todays.map(r => {
     const c = num(r.temperature_c);
-    return c == null ? null : c * 9 / 5 + 32;
+    return { x: timeOfDay(r.timestamp_local), y: c == null ? null : c * 9 / 5 + 32 };
   });
-  const precipitation = todays.map(r => num(r.precipitation_mm));
+  const precPts = todays.map(r => ({ x: timeOfDay(r.timestamp_local), y: num(r.precipitation_mm) }));
 
   let peakVal = null, peakTime = '—';
-  ice.forEach((v, i) => {
-    if (v != null && (peakVal == null || v > peakVal)) { peakVal = v; peakTime = labels[i]; }
+  icePts.forEach(p => {
+    if (p.y != null && (peakVal == null || p.y > peakVal)) { peakVal = p.y; peakTime = fmtHM(p.x); }
   });
   const cap = num(todays[todays.length - 1].ice_capacity);
   const dow = new Date(day + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
@@ -229,26 +238,34 @@ function render() {
   const ctx = document.getElementById('chart').getContext('2d');
   chart = new Chart(ctx, {
     data: {
-      labels,
       datasets: [
-        { type: 'line', label: 'Pool occupancy', data: ice,
+        { type: 'line', label: 'Pool occupancy', data: icePts,
           borderColor: '#2563eb', backgroundColor: '#2563eb',
           yAxisID: 'yPeople', tension: .25, pointRadius: 2 },
-        { type: 'line', label: 'Temperature (°F)', data: temperature,
+        { type: 'line', label: 'Temperature (°F)', data: tempPts,
           borderColor: '#e74c3c', backgroundColor: '#e74c3c',
           yAxisID: 'yTemp', tension: .25, pointRadius: 0, borderDash: [4, 3] },
-        { type: 'bar', label: 'Precipitation (mm)', data: precipitation,
+        { type: 'bar', label: 'Precipitation (mm)', data: precPts,
           borderColor: '#4ade80', backgroundColor: 'rgba(187, 247, 208, .6)',
-          yAxisID: 'yPrecip' },
+          yAxisID: 'yPrecip', barThickness: 4 },
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: { legend: { position: 'bottom' } },
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            title: (items) => items.length ? fmtHM(items[0].parsed.x) : '',
+          }
+        }
+      },
       scales: {
-        x: { title: { display: true, text: 'Time' } },
+        x: { type: 'linear', min: 6, max: 22,
+             title: { display: true, text: 'Time (Taipei)' },
+             ticks: { stepSize: 2, callback: (v) => fmtHM(v) } },
         yPeople: { type: 'linear', position: 'left',
                    title: { display: true, text: 'People' }, beginAtZero: true },
         yTemp:   { type: 'linear', position: 'right',
