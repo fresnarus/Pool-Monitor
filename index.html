@@ -238,7 +238,7 @@ function render() {
           borderColor: '#e74c3c', backgroundColor: '#e74c3c',
           yAxisID: 'yTemp', tension: .25, pointRadius: 0, borderDash: [4, 3] },
         { type: 'bar', label: 'Precipitation (mm)', data: precipitation,
-          borderColor: '#2980b9', backgroundColor: 'rgba(41, 128, 185, .35)',
+          borderColor: '#4ade80', backgroundColor: 'rgba(187, 247, 208, .6)',
           yAxisID: 'yPrecip' },
       ]
     },
@@ -252,7 +252,7 @@ function render() {
         yPeople: { type: 'linear', position: 'left',
                    title: { display: true, text: 'People' }, beginAtZero: true },
         yTemp:   { type: 'linear', position: 'right',
-                   title: { display: true, text: '°F' },
+                   title: { display: true, text: ['°', 'F'], rotation: 0 },
                    grid: { drawOnChartArea: false } },
         yPrecip: { type: 'linear', position: 'right',
                    beginAtZero: true, display: false,
