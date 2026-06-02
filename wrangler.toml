@@ -1,3 +1,4 @@
+# Cloudflare Worker config. Edits to this file or to worker.js auto-deploy via Cloudflare Workers Builds.
 name = "pool-monitor"
 main = "worker.js"
 compatibility_date = "2024-10-01"
