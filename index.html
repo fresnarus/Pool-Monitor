@@ -207,7 +207,10 @@ function render() {
   const ice  = todays.map(r => num(r.ice_current));
   const swim = todays.map(r => num(r.swim_current));
   const gym  = todays.map(r => num(r.gym_current));
-  const temperature   = todays.map(r => num(r.temperature_c));
+  const temperature   = todays.map(r => {
+    const c = num(r.temperature_c);
+    return c == null ? null : c * 9 / 5 + 32;
+  });
   const precipitation = todays.map(r => num(r.precipitation_mm));
 
   let peakVal = null, peakTime = '—';
@@ -239,7 +242,7 @@ function render() {
         { type: 'line', label: 'Gym', data: gym,
           borderColor: '#9b59b6', backgroundColor: '#9b59b6',
           yAxisID: 'yPeople', tension: .25, pointRadius: 2, hidden: true },
-        { type: 'line', label: 'Temperature (°C)', data: temperature,
+        { type: 'line', label: 'Temperature (°F)', data: temperature,
           borderColor: '#e74c3c', backgroundColor: '#e74c3c',
           yAxisID: 'yTemp', tension: .25, pointRadius: 0, borderDash: [4, 3] },
         { type: 'bar', label: 'Precipitation (mm)', data: precipitation,
@@ -257,7 +260,7 @@ function render() {
         yPeople: { type: 'linear', position: 'left',
                    title: { display: true, text: 'People' }, beginAtZero: true },
         yTemp:   { type: 'linear', position: 'right',
-                   title: { display: true, text: '°C' },
+                   title: { display: true, text: '°F' },
                    grid: { drawOnChartArea: false } },
         yPrecip: { type: 'linear', position: 'right',
                    beginAtZero: true, display: false,
