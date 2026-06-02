@@ -61,7 +61,7 @@
 <div id="summary" class="summary">Loading…</div>
 <div class="chart-wrap"><canvas id="chart" height="120"></canvas></div>
 
-<h2>Average occupancy by weekday and hour <small style="font-weight:normal;color:var(--muted)">(across all history)</small></h2>
+<h2>Average occupancy by weekday and half-hour <small style="font-weight:normal;color:var(--muted)">(across all history)</small></h2>
 <div class="heatmap-wrap"><div id="heatmap">Loading…</div></div>
 
 <footer>
@@ -124,26 +124,30 @@ async function load() {
 
 function renderHeatmap() {
   const el = document.getElementById('heatmap');
-  // Bucket: sum and count of ice_current by (weekday, hour). weekday: 0=Mon..6=Sun
-  const HOURS = [];
-  for (let h = 6; h < 22; h++) HOURS.push(h);
+  // Bucket by (weekday, half-hour slot). slot 0 = 06:00, slot 1 = 06:30, ..., slot 31 = 21:30.
+  const SLOTS = [];
+  for (let h = 6; h < 22; h++) {
+    SLOTS.push({ h, m: 0 });
+    SLOTS.push({ h, m: 30 });
+  }
   const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const sum = Array.from({length: 7}, () => Array(HOURS.length).fill(0));
-  const cnt = Array.from({length: 7}, () => Array(HOURS.length).fill(0));
+  const sum = Array.from({length: 7}, () => Array(SLOTS.length).fill(0));
+  const cnt = Array.from({length: 7}, () => Array(SLOTS.length).fill(0));
 
   for (const r of rows) {
     const v = num(r.ice_current);
     if (v == null || !r.timestamp_local) continue;
-    const m = r.timestamp_local.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):/);
+    const m = r.timestamp_local.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
     if (!m) continue;
     const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
     const jsDow = d.getUTCDay();          // 0=Sun..6=Sat
     const dow   = (jsDow + 6) % 7;        // 0=Mon..6=Sun
     const hour  = parseInt(m[4], 10);
-    const hi = hour - 6;
-    if (hi < 0 || hi >= HOURS.length) continue;
-    sum[dow][hi] += v;
-    cnt[dow][hi] += 1;
+    const minu  = parseInt(m[5], 10);
+    const si = (hour - 6) * 2 + (minu >= 30 ? 1 : 0);
+    if (si < 0 || si >= SLOTS.length) continue;
+    sum[dow][si] += v;
+    cnt[dow][si] += 1;
   }
 
   let maxAvg = 0;
@@ -161,26 +165,27 @@ function renderHeatmap() {
 
   const cap = num(rows[rows.length - 1]?.ice_capacity) || maxAvg;
   const colorFor = (a) => {
-    // 0 -> light yellow, capacity -> dark red. Use ratio of capacity (not maxAvg) so colors mean "fullness".
     const t = Math.min(1, a / cap);
     const r = Math.round(255 * (0.4 + 0.6 * t));
     const g = Math.round(220 * (1 - t * 0.85));
     const b = Math.round(120 * (1 - t));
     return `rgb(${r},${g},${b})`;
   };
+  const slotLabel = (s) => `${String(s.h).padStart(2, '0')}:${String(s.m).padStart(2, '0')}`;
 
   let html = '<table class="heatmap"><thead><tr><th></th>';
-  for (const h of HOURS) html += `<th>${String(h).padStart(2, '0')}</th>`;
+  // Show label only at the top of each hour to keep the header readable.
+  for (const s of SLOTS) html += `<th>${s.m === 0 ? slotLabel(s) : ''}</th>`;
   html += '</tr></thead><tbody>';
   for (let i = 0; i < 7; i++) {
     html += `<tr><td class="lbl">${DOW[i]}</td>`;
-    for (let j = 0; j < HOURS.length; j++) {
+    for (let j = 0; j < SLOTS.length; j++) {
       const a = avg[i][j];
       if (a == null) {
         html += '<td class="cell empty">·</td>';
       } else {
         const n = cnt[i][j];
-        html += `<td class="cell" style="background:${colorFor(a)}" title="${DOW[i]} ${HOURS[j]}:00 — mean ${a.toFixed(1)} (n=${n})">${Math.round(a)}</td>`;
+        html += `<td class="cell" style="background:${colorFor(a)}" title="${DOW[i]} ${slotLabel(SLOTS[j])} — mean ${a.toFixed(1)} (n=${n})">${Math.round(a)}</td>`;
       }
     }
     html += '</tr>';
