@@ -274,7 +274,7 @@ function render() {
         yPeople: { type: 'linear', position: 'left',
                    title: { display: true, text: 'People' }, beginAtZero: true },
         yTemp:   { type: 'linear', position: 'right',
-                   title: { display: true, text: '°F', rotation: 0, padding: { top: 0, bottom: 10 } },
+                   ticks: { callback: (v) => `${v}°F` },
                    grid: { drawOnChartArea: false } },
         yPrecip: { type: 'linear', position: 'right',
                    beginAtZero: true, display: false,
