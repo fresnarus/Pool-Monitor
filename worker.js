@@ -4,7 +4,7 @@
 
 const OWNER = "fresnarus";
 const REPO = "Pool-Monitor";
-const BRANCH = "claude/relaxed-planck-BgLPg";
+const BRANCH = "data";
 const CSV_PATH = "data/occupancy.csv";
 
 const POOL_API = "https://wssc.cyc.org.tw/api";
